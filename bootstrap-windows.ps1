@@ -214,8 +214,18 @@ echo '==============================='
 echo ''
 '@
 
-# Save the script and execute it in WSL2
-$wslScript | wsl bash
+# Save the script to a temp file in WSL and execute it (so stdin stays
+# connected to the terminal — required for sudo password prompts and
+# interactive gh auth login).
+# GetRandomFileName() produces only alphanumeric chars + one dot (removed here),
+# so the resulting path contains no shell metacharacters.
+$tmpScript = "/tmp/dotfiles_bootstrap_$([System.IO.Path]::GetRandomFileName().Replace('.', '')).sh"
+$wslScript | wsl bash -c "cat > '$tmpScript' && chmod +x '$tmpScript'"
+try {
+    wsl bash "$tmpScript"
+} finally {
+    wsl bash -c "rm -f '$tmpScript'"
+}
 
 # If present, run Stage 2 native Windows installer from WSL (no env gating).
 Write-Host "" 
