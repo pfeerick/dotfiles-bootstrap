@@ -30,7 +30,7 @@ if [ -z "$GITHUB_USER" ]; then
     echo "  GITHUB_USER=yourname REPO_NAME=dotfiles curl ... | bash"
     echo "  OR: ./bootstrap-macos.sh yourname [dotfiles]"
     echo ""
-    if [ -n "$1" ]; then
+    if [ -n "${1:-}" ]; then
         GITHUB_USER="$1"
         REPO_NAME="${2:-dotfiles}"
     else

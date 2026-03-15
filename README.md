@@ -9,13 +9,13 @@ This repository is intentionally minimal. It installs only what is needed to aut
 Linux:
 
 ```bash
-GITHUB_USER=pfeerick REPO_NAME=dotfiles curl -fsSL https://raw.githubusercontent.com/pfeerick/dotfiles-bootstrap/master/bootstrap-linux.sh | bash
+curl -fsSL https://raw.githubusercontent.com/pfeerick/dotfiles-bootstrap/master/bootstrap-linux.sh | GITHUB_USER=pfeerick REPO_NAME=dotfiles bash
 ```
 
 macOS:
 
 ```bash
-GITHUB_USER=pfeerick REPO_NAME=dotfiles curl -fsSL https://raw.githubusercontent.com/pfeerick/dotfiles-bootstrap/master/bootstrap-macos.sh | bash
+curl -fsSL https://raw.githubusercontent.com/pfeerick/dotfiles-bootstrap/master/bootstrap-macos.sh | GITHUB_USER=pfeerick REPO_NAME=dotfiles bash
 ```
 
 Windows (PowerShell as Administrator):
