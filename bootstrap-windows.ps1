@@ -222,7 +222,7 @@ echo ''
 $tmpScript = "/tmp/dotfiles_bootstrap_$([System.IO.Path]::GetRandomFileName().Replace('.', '')).sh"
 $wslScript | wsl bash -c "cat > '$tmpScript' && chmod +x '$tmpScript'"
 try {
-    wsl bash "$tmpScript"
+    wsl bash -c "GITHUB_USER='$githubUser' REPO_NAME='$repoName' bash '$tmpScript'"
 } finally {
     wsl bash -c "rm -f '$tmpScript'"
 }
