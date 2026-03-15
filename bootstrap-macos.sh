@@ -104,6 +104,18 @@ REPO_URL="https://github.com/$GITHUB_USER/$REPO_NAME.git"
 if [ "$CI_TEST" = "1" ]; then
     echo "[CI-TEST] Skipping Stage 2 handoff: chezmoi init --apply $REPO_URL"
 else
+    CONTRACT_DIR="$HOME/.config/dotfiles-bootstrap"
+    CONTRACT_FILE="$CONTRACT_DIR/handoff.env"
+    mkdir -p "$CONTRACT_DIR"
+    {
+        echo "STAGE1_PROVIDER=dotfiles-bootstrap"
+        echo "STAGE1_OS=macos"
+        echo "STAGE1_GITHUB_USER=$GITHUB_USER"
+        echo "STAGE1_REPO_NAME=$REPO_NAME"
+        echo "STAGE1_REPO_URL=$REPO_URL"
+        echo "STAGE1_GENERATED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    } > "$CONTRACT_FILE"
+
     chezmoi init --apply "$REPO_URL"
 fi
 

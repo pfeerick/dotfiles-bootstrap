@@ -70,6 +70,10 @@ Manual validation checklist:
 
 - [docs/smoke-test-checklist.md](docs/smoke-test-checklist.md)
 
+Stage handoff contract:
+
+- [docs/stage1-stage2-contract.md](docs/stage1-stage2-contract.md)
+
 ## Notes
 
 - Current commands use the `master` branch raw URL for parity while migrating from gist.

@@ -184,6 +184,18 @@ else
 fi
 
 REPO_URL="https://github.com/$GITHUB_USER/$REPO_NAME.git"
+CONTRACT_DIR="$HOME/.config/dotfiles-bootstrap"
+CONTRACT_FILE="$CONTRACT_DIR/handoff.env"
+mkdir -p "$CONTRACT_DIR"
+{
+    echo "STAGE1_PROVIDER=dotfiles-bootstrap"
+    echo "STAGE1_OS=windows-wsl"
+    echo "STAGE1_GITHUB_USER=$GITHUB_USER"
+    echo "STAGE1_REPO_NAME=$REPO_NAME"
+    echo "STAGE1_REPO_URL=$REPO_URL"
+    echo "STAGE1_GENERATED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+} > "$CONTRACT_FILE"
+
 "$CHEZMOI" init --apply "$REPO_URL"
 
 echo ''
