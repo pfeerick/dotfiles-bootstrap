@@ -34,8 +34,8 @@ if [ -z "$GITHUB_USER" ]; then
         GITHUB_USER="$1"
         REPO_NAME="${2:-dotfiles}"
     else
-        read -p "Enter your GitHub username: " GITHUB_USER </dev/tty
-        read -p "Enter your dotfiles repo name [dotfiles]: " REPO_NAME </dev/tty
+        read -r -p "Enter your GitHub username: " GITHUB_USER </dev/tty
+        read -r -p "Enter your dotfiles repo name [dotfiles]: " REPO_NAME </dev/tty
         REPO_NAME=${REPO_NAME:-dotfiles}
     fi
 fi
@@ -46,6 +46,7 @@ echo ""
 
 # Detect OS
 if [ -f /etc/os-release ]; then
+    # shellcheck disable=SC1091
     . /etc/os-release
     OS=$ID
 else
