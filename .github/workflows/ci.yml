@@ -1,0 +1,74 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  linux-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install shellcheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+
+      - name: ShellCheck
+        run: ./scripts/test-shellcheck.sh
+
+      - name: Bash syntax checks
+        run: ./scripts/test-matrix.sh
+
+      - name: Linux bootstrap CI test
+        env:
+          BOOTSTRAP_CI_TEST: "1"
+          BOOTSTRAP_NONINTERACTIVE: "1"
+          GITHUB_USER: pfeerick
+          REPO_NAME: dotfiles
+          GH_TOKEN: ${{ github.token }}
+        run: bash ./bootstrap-linux.sh
+
+  macos-checks:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Bash syntax checks
+        run: ./scripts/test-matrix.sh
+
+      - name: macOS bootstrap CI test
+        env:
+          BOOTSTRAP_CI_TEST: "1"
+          BOOTSTRAP_NONINTERACTIVE: "1"
+          GITHUB_USER: pfeerick
+          REPO_NAME: dotfiles
+          GH_TOKEN: ${{ github.token }}
+        run: bash ./bootstrap-macos.sh
+
+  windows-checks:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: PowerShell parse check
+        shell: pwsh
+        run: |
+          $errors = $null
+          [void][System.Management.Automation.Language.Parser]::ParseFile("bootstrap-windows.ps1", [ref]$null, [ref]$errors)
+          if ($errors -and $errors.Count -gt 0) {
+            $errors | ForEach-Object { Write-Error $_ }
+            exit 1
+          }
+
+      - name: Windows bootstrap CI test
+        shell: pwsh
+        env:
+          BOOTSTRAP_CI_TEST: "1"
+          BOOTSTRAP_NONINTERACTIVE: "1"
+          GITHUB_USER: pfeerick
+          REPO_NAME: dotfiles
+          GH_TOKEN: ${{ github.token }}
+        run: ./bootstrap-windows.ps1

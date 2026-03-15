@@ -4,7 +4,13 @@
 # Usage: curl -fsSL https://YOUR_PUBLIC_URL/bootstrap-macos.sh | bash
 # Or if script is local: ./bootstrap-macos.sh
 
-set -e
+set -euo pipefail
+
+CI_TEST="${BOOTSTRAP_CI_TEST:-0}"
+NONINTERACTIVE="${BOOTSTRAP_NONINTERACTIVE:-0}"
+if [ "$CI_TEST" = "1" ]; then
+    NONINTERACTIVE="1"
+fi
 
 echo "================================"
 echo "Starting macOS Bootstrap..."
@@ -15,6 +21,10 @@ GITHUB_USER=${GITHUB_USER:-}
 REPO_NAME=${REPO_NAME:-dotfiles}
 
 if [ -z "$GITHUB_USER" ]; then
+    if [ "$NONINTERACTIVE" = "1" ]; then
+        echo "ERROR: GITHUB_USER must be set when BOOTSTRAP_NONINTERACTIVE=1"
+        exit 1
+    fi
     echo ""
     echo "Set GITHUB_USER environment variable or pass as argument:"
     echo "  GITHUB_USER=yourname REPO_NAME=dotfiles curl ... | bash"
@@ -70,7 +80,15 @@ fi
 echo ""
 echo "Authenticating with GitHub..."
 if ! gh auth status &> /dev/null; then
-    gh auth login
+    if [ "$CI_TEST" = "1" ]; then
+        if [ -z "${GH_TOKEN:-}" ]; then
+            echo "ERROR: GH_TOKEN must be set when BOOTSTRAP_CI_TEST=1"
+            exit 1
+        fi
+        printf '%s\n' "$GH_TOKEN" | gh auth login --with-token
+    else
+        gh auth login
+    fi
 fi
 
 # Configure git to use gh as credential helper
@@ -83,7 +101,11 @@ echo ""
 
 # Clone and apply using gh for authentication
 REPO_URL="https://github.com/$GITHUB_USER/$REPO_NAME.git"
-chezmoi init --apply "$REPO_URL"
+if [ "$CI_TEST" = "1" ]; then
+    echo "[CI-TEST] Skipping Stage 2 handoff: chezmoi init --apply $REPO_URL"
+else
+    chezmoi init --apply "$REPO_URL"
+fi
 
 echo ""
 echo "================================"

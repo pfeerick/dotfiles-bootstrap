@@ -6,6 +6,12 @@
 
 $ErrorActionPreference = "Stop"
 
+$isCiTest = ($env:BOOTSTRAP_CI_TEST -eq "1")
+$isNonInteractive = ($env:BOOTSTRAP_NONINTERACTIVE -eq "1")
+if ($isCiTest) {
+    $isNonInteractive = $true
+}
+
 Write-Host "===============================" -ForegroundColor Cyan
 Write-Host "Starting Windows Bootstrap..." -ForegroundColor Cyan
 Write-Host "===============================" -ForegroundColor Cyan
@@ -16,6 +22,10 @@ $githubUser = $env:GITHUB_USER
 $repoName = if ($env:REPO_NAME) { $env:REPO_NAME } else { "dotfiles" }
 
 if (-not $githubUser) {
+    if ($isNonInteractive) {
+        Write-Host "ERROR: GITHUB_USER must be set when BOOTSTRAP_NONINTERACTIVE=1" -ForegroundColor Red
+        exit 1
+    }
     Write-Host "Set GITHUB_USER environment variable or pass as parameter:" -ForegroundColor Yellow
     Write-Host '  $env:GITHUB_USER="yourname"; $env:REPO_NAME="dotfiles"; .\bootstrap-windows.ps1' -ForegroundColor Yellow
     Write-Host ""
@@ -32,10 +42,31 @@ Write-Host ""
 
 # Check if running as administrator
 $isAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
-if (-not $isAdmin) {
+if (-not $isAdmin -and -not $isCiTest) {
     Write-Host "ERROR: This script must be run as Administrator!" -ForegroundColor Red
     Write-Host "Right-click PowerShell and select 'Run as Administrator'" -ForegroundColor Yellow
     exit 1
+}
+
+if ($isCiTest) {
+    Write-Host "[CI-TEST] Running Windows bootstrap CI mode" -ForegroundColor Yellow
+
+    if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
+        Write-Host "ERROR: gh CLI not found on runner" -ForegroundColor Red
+        exit 1
+    }
+
+    if (-not (gh auth status *> $null)) {
+        if (-not $env:GH_TOKEN) {
+            Write-Host "ERROR: GH_TOKEN must be set when BOOTSTRAP_CI_TEST=1" -ForegroundColor Red
+            exit 1
+        }
+        $env:GH_TOKEN | gh auth login --with-token
+    }
+
+    gh auth setup-git
+    Write-Host "[CI-TEST] Skipping WSL provisioning and Stage 2 handoff" -ForegroundColor Yellow
+    exit 0
 }
 
 # Install WSL2 if not already installed
