@@ -66,6 +66,10 @@ Run local checks:
 ./scripts/test-matrix.sh
 ```
 
+Manual validation checklist:
+
+- [docs/smoke-test-checklist.md](docs/smoke-test-checklist.md)
+
 ## Notes
 
 - Current commands use the `master` branch raw URL for parity while migrating from gist.
