@@ -233,7 +233,7 @@ Write-Host "Checking for Stage 2 Windows native tools installer..." -ForegroundC
 $stage2InstallerExists = (wsl bash -lc 'test -f "$HOME/.local/share/chezmoi/scripts/install_windows_native_tools.py" && echo yes || true').Trim()
 if ($stage2InstallerExists -eq "yes") {
     Write-Host "Running Stage 2 Windows native tools installer..." -ForegroundColor Yellow
-    wsl bash -lc 'python3 "$HOME/.local/share/chezmoi/scripts/install_windows_native_tools.py"'
+    wsl bash -c 'source "$HOME/.profile" 2>/dev/null; python3 "$HOME/.local/share/chezmoi/scripts/install_windows_native_tools.py"'
 } else {
     Write-Host "Stage 2 Windows native tools installer not found; skipping native Windows package install." -ForegroundColor DarkYellow
 }
