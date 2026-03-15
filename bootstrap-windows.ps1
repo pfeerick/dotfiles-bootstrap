@@ -1,0 +1,178 @@
+# bootstrap-windows.ps1
+# Setup for Windows with WSL2 (works with private repos via gh CLI)
+# Run in PowerShell as Admin:
+# irm https://YOUR_PUBLIC_URL/bootstrap-windows.ps1 | iex
+# Or if script is local: .\bootstrap-windows.ps1
+
+$ErrorActionPreference = "Stop"
+
+Write-Host "===============================" -ForegroundColor Cyan
+Write-Host "Starting Windows Bootstrap..." -ForegroundColor Cyan
+Write-Host "===============================" -ForegroundColor Cyan
+Write-Host ""
+
+# Get GitHub info from environment or prompt
+$githubUser = $env:GITHUB_USER
+$repoName = if ($env:REPO_NAME) { $env:REPO_NAME } else { "dotfiles" }
+
+if (-not $githubUser) {
+    Write-Host "Set GITHUB_USER environment variable or pass as parameter:" -ForegroundColor Yellow
+    Write-Host '  $env:GITHUB_USER="yourname"; $env:REPO_NAME="dotfiles"; .\bootstrap-windows.ps1' -ForegroundColor Yellow
+    Write-Host ""
+    $githubUser = Read-Host "Enter your GitHub username"
+    $repoName = Read-Host "Enter your dotfiles repo name [dotfiles]"
+    if ([string]::IsNullOrWhiteSpace($repoName)) {
+        $repoName = "dotfiles"
+    }
+}
+
+Write-Host ""
+Write-Host "Using: https://github.com/$githubUser/$repoName" -ForegroundColor Cyan
+Write-Host ""
+
+# Check if running as administrator
+$isAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+if (-not $isAdmin) {
+    Write-Host "ERROR: This script must be run as Administrator!" -ForegroundColor Red
+    Write-Host "Right-click PowerShell and select 'Run as Administrator'" -ForegroundColor Yellow
+    exit 1
+}
+
+# Install WSL2 if not already installed
+if (-not (Get-Command wsl -ErrorAction SilentlyContinue)) {
+    Write-Host "Installing WSL2..." -ForegroundColor Yellow
+    wsl --install
+    Write-Host ""
+    Write-Host "===============================" -ForegroundColor Yellow
+    Write-Host "WSL2 installation complete!" -ForegroundColor Yellow
+    Write-Host "Please restart your computer and run this script again." -ForegroundColor Yellow
+    Write-Host "===============================" -ForegroundColor Yellow
+    exit 0
+}
+
+# Check if WSL2 is actually set up
+$wslStatus = wsl --status 2>&1
+if ($wslStatus -match "no installed distributions") {
+    Write-Host "Installing default Ubuntu distribution..." -ForegroundColor Yellow
+    wsl --install -d Ubuntu
+    Write-Host ""
+    Write-Host "===============================" -ForegroundColor Yellow
+    Write-Host "Ubuntu installed in WSL2!" -ForegroundColor Yellow
+    Write-Host "Please complete the Ubuntu setup (username/password)" -ForegroundColor Yellow
+    Write-Host "Then run this script again." -ForegroundColor Yellow
+    Write-Host "===============================" -ForegroundColor Yellow
+    exit 0
+}
+
+# Install WezTerm if not installed
+if (-not (Get-Command wezterm -ErrorAction SilentlyContinue)) {
+    Write-Host "Installing WezTerm..." -ForegroundColor Yellow
+
+    # Check for winget
+    if (Get-Command winget -ErrorAction SilentlyContinue) {
+        winget install --id wez.wezterm -e --silent --accept-source-agreements --accept-package-agreements
+    } else {
+        Write-Host "Please install WezTerm manually from https://wezfurlong.org/wezterm/" -ForegroundColor Yellow
+        Start-Process "https://wezfurlong.org/wezterm/"
+        exit 1
+    }
+}
+
+# Create WezTerm config to use WSL2 by default
+$weztermConfig = @"
+local wezterm = require 'wezterm'
+
+return {
+  default_prog = { 'wsl.exe' },
+
+  -- Optional: Set a nice font (install a Nerd Font for icons)
+  -- font = wezterm.font 'JetBrains Mono',
+  -- font_size = 11.0,
+}
+"@
+
+$weztermConfigPath = "$env:USERPROFILE\.wezterm.lua"
+if (-not (Test-Path $weztermConfigPath)) {
+    Write-Host "Creating WezTerm config..." -ForegroundColor Yellow
+    $weztermConfig | Out-File -FilePath $weztermConfigPath -Encoding UTF8
+}
+
+Write-Host ""
+Write-Host "Now setting up dotfiles inside WSL2..." -ForegroundColor Yellow
+Write-Host ""
+
+# Create a script to run inside WSL2
+$wslScript = @'
+#!/bin/bash
+set -e
+
+echo 'Installing dependencies in WSL2...'
+
+# Install dependencies
+sudo apt update
+sudo apt install -y curl git
+
+# Install GitHub CLI
+if ! command -v gh &> /dev/null; then
+    echo 'Installing GitHub CLI...'
+    type -p curl >/dev/null || sudo apt install curl -y
+    curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
+    sudo chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+    sudo apt update
+    sudo apt install -y gh
+fi
+
+# Install chezmoi
+if ! command -v chezmoi &> /dev/null; then
+    echo 'Installing chezmoi...'
+    sh -c "$(curl -fsLS get.chezmoi.io)" -- -b ~/.local/bin
+    export PATH="$HOME/.local/bin:$PATH"
+fi
+
+# Authenticate with GitHub
+echo ''
+echo 'Authenticating with GitHub...'
+if ! gh auth status &> /dev/null; then
+    gh auth login
+fi
+
+# Initialize chezmoi
+echo ''
+echo "Initializing chezmoi with https://github.com/$GITHUB_USER/$REPO_NAME"
+echo ''
+
+# Ensure chezmoi is in PATH
+if [ -f "$HOME/.local/bin/chezmoi" ]; then
+    CHEZMOI="$HOME/.local/bin/chezmoi"
+elif command -v chezmoi &> /dev/null; then
+    CHEZMOI="chezmoi"
+else
+    echo "ERROR: chezmoi not found!"
+    exit 1
+fi
+
+REPO_URL="https://github.com/$GITHUB_USER/$REPO_NAME.git"
+"$CHEZMOI" init --apply "$REPO_URL"
+
+echo ''
+echo '==============================='
+echo 'Bootstrap complete!'
+echo '==============================='
+echo ''
+'@
+
+# Save the script and execute it in WSL2
+$wslScript | wsl bash
+
+Write-Host ""
+Write-Host "===============================" -ForegroundColor Green
+Write-Host "Windows Bootstrap Complete!" -ForegroundColor Green
+Write-Host "===============================" -ForegroundColor Green
+Write-Host ""
+Write-Host "Next steps:" -ForegroundColor Cyan
+Write-Host "1. Close this PowerShell window" -ForegroundColor White
+Write-Host "2. Open WezTerm (it will launch into WSL2 automatically)" -ForegroundColor White
+Write-Host "3. Enjoy your consistent development environment!" -ForegroundColor White
+Write-Host ""
+
