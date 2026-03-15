@@ -65,7 +65,7 @@ echo "Installing dependencies..."
 case $OS in
     ubuntu|debian|linuxmint)
         sudo apt update
-        sudo apt install -y curl git
+        sudo apt install -y curl git python3
         
         # Install GitHub CLI
         if ! command -v gh &> /dev/null; then
@@ -79,7 +79,7 @@ case $OS in
         fi
         ;;
     fedora|centos|rhel)
-        sudo dnf install -y curl git
+        sudo dnf install -y curl git python3
         
         # Install GitHub CLI
         if ! command -v gh &> /dev/null; then
@@ -90,6 +90,11 @@ case $OS in
         fi
         ;;
 esac
+
+if ! command -v python3 &> /dev/null; then
+    echo "ERROR: python3 is required but was not found after dependency installation."
+    exit 1
+fi
 
 # Install chezmoi if not already installed
 if ! command -v chezmoi &> /dev/null; then

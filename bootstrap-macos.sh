@@ -70,6 +70,12 @@ if ! command -v gh &> /dev/null; then
     brew install gh
 fi
 
+# Install Python 3 if not present
+if ! command -v python3 &> /dev/null; then
+    echo "Installing Python 3..."
+    brew install python
+fi
+
 # Install chezmoi if not already installed
 if ! command -v chezmoi &> /dev/null; then
     echo "Installing chezmoi..."
