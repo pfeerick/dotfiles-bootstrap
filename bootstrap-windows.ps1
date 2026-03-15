@@ -217,6 +217,17 @@ echo ''
 # Save the script and execute it in WSL2
 $wslScript | wsl bash
 
+# If present, run Stage 2 native Windows installer from WSL (no env gating).
+Write-Host "" 
+Write-Host "Checking for Stage 2 Windows native tools installer..." -ForegroundColor Yellow
+$stage2InstallerExists = (wsl bash -lc 'test -f "$HOME/.local/share/chezmoi/scripts/install_windows_native_tools.py" && echo yes || true').Trim()
+if ($stage2InstallerExists -eq "yes") {
+    Write-Host "Running Stage 2 Windows native tools installer..." -ForegroundColor Yellow
+    wsl bash -lc 'python3 "$HOME/.local/share/chezmoi/scripts/install_windows_native_tools.py"'
+} else {
+    Write-Host "Stage 2 Windows native tools installer not found; skipping native Windows package install." -ForegroundColor DarkYellow
+}
+
 Write-Host ""
 Write-Host "===============================" -ForegroundColor Green
 Write-Host "Windows Bootstrap Complete!" -ForegroundColor Green

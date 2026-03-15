@@ -66,7 +66,7 @@ case $OS in
     ubuntu|debian|linuxmint)
         sudo apt update
         sudo apt install -y curl git python3
-        
+
         # Install GitHub CLI
         if ! command -v gh &> /dev/null; then
             echo "Installing GitHub CLI..."
@@ -80,7 +80,7 @@ case $OS in
         ;;
     fedora|centos|rhel)
         sudo dnf install -y curl git python3
-        
+
         # Install GitHub CLI
         if ! command -v gh &> /dev/null; then
             echo "Installing GitHub CLI..."
