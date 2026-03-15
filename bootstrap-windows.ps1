@@ -132,6 +132,10 @@ Write-Host ""
 Write-Host "Now setting up dotfiles inside WSL2..." -ForegroundColor Yellow
 Write-Host ""
 
+# Pass selected repo/user values through to WSL script execution.
+$env:GITHUB_USER = $githubUser
+$env:REPO_NAME = $repoName
+
 # Create a script to run inside WSL2
 $wslScript = @'
 #!/bin/bash
@@ -141,7 +145,12 @@ echo 'Installing dependencies in WSL2...'
 
 # Install dependencies
 sudo apt update
-sudo apt install -y curl git
+sudo apt install -y curl git python3
+
+if ! command -v python3 &> /dev/null; then
+    echo 'ERROR: python3 is required but was not found after dependency installation.'
+    exit 1
+fi
 
 # Install GitHub CLI
 if ! command -v gh &> /dev/null; then
