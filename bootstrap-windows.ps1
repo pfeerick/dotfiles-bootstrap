@@ -109,34 +109,25 @@ if (-not (Get-Command wezterm -ErrorAction SilentlyContinue)) {
     }
 }
 
-# Create WezTerm config to use WSL2 by default
-$weztermConfig = @"
-local wezterm = require 'wezterm'
 
-return {
-  default_prog = { 'wsl.exe' },
-
-  -- Optional: Set a nice font (install a Nerd Font for icons)
-  -- font = wezterm.font 'JetBrains Mono',
-  -- font_size = 11.0,
-}
-"@
-
-$weztermConfigPath = "$env:USERPROFILE\.wezterm.lua"
-if (-not (Test-Path $weztermConfigPath)) {
-    Write-Host "Creating WezTerm config..." -ForegroundColor Yellow
-    $weztermConfig | Out-File -FilePath $weztermConfigPath -Encoding UTF8
-}
-
-# Install chezmoi natively if not already installed
-if (-not (Get-Command chezmoi -ErrorAction SilentlyContinue)) {
-    Write-Host "Installing chezmoi (native Windows)..." -ForegroundColor Yellow
-    if (Get-Command winget -ErrorAction SilentlyContinue) {
-        winget install --id twpayne.chezmoi -e --silent --accept-source-agreements --accept-package-agreements
-    } else {
-        Write-Host "winget not available; skipping native chezmoi install." -ForegroundColor DarkYellow
+# Install native tools needed for dotfile management before WSL setup
+foreach ($pkg in @(
+    @{ Name = "chezmoi"; Id = "twpayne.chezmoi" },
+    @{ Name = "gh";      Id = "GitHub.cli"      }
+)) {
+    if (-not (Get-Command $pkg.Name -ErrorAction SilentlyContinue)) {
+        Write-Host "Installing $($pkg.Name) (native Windows)..." -ForegroundColor Yellow
+        if (Get-Command winget -ErrorAction SilentlyContinue) {
+            winget install --id $pkg.Id -e --silent --accept-source-agreements --accept-package-agreements
+        } else {
+            Write-Host "winget not available; skipping $($pkg.Name) install." -ForegroundColor DarkYellow
+        }
     }
 }
+
+# Refresh PATH so newly installed tools are visible in this session
+$env:PATH = [System.Environment]::GetEnvironmentVariable("PATH", "Machine") + ";" +
+            [System.Environment]::GetEnvironmentVariable("PATH", "User")
 
 Write-Host ""
 Write-Host "Now setting up dotfiles inside WSL2..." -ForegroundColor Yellow
@@ -248,6 +239,44 @@ if ($stage2InstallerExists -eq "yes") {
     Write-Host "Stage 2 Windows native tools installer not found; skipping native Windows package install." -ForegroundColor DarkYellow
 }
 
+# Authenticate gh natively, reusing the token from WSL to avoid a second interactive login
+Write-Host ""
+Write-Host "Setting up GitHub CLI for native Windows..." -ForegroundColor Yellow
+$ghNative = Get-Command gh -ErrorAction SilentlyContinue
+if ($ghNative) {
+    $ghAuthed = (gh auth status *>&1) -match "Logged in"
+    if (-not $ghAuthed) {
+        # Prefer GH_TOKEN env var, then try to extract from the WSL gh session
+        $token = $env:GH_TOKEN
+        if (-not $token) {
+            $token = (wsl bash -lc 'gh auth token 2>/dev/null').Trim()
+        }
+        if ($token) {
+            $token | gh auth login --with-token
+            gh auth setup-git
+            Write-Host "gh authenticated natively." -ForegroundColor Green
+        } else {
+            Write-Host "WARNING: Could not obtain gh token; native chezmoi init will be skipped." -ForegroundColor Yellow
+            $ghAuthed = $false
+        }
+    }
+
+    # Run chezmoi init natively to deploy Windows dotfiles
+    if ($ghAuthed -or (gh auth status *>&1 | Select-String "Logged in")) {
+        Write-Host ""
+        Write-Host "Running native chezmoi init --apply..." -ForegroundColor Yellow
+        $repoUrl = "https://github.com/$githubUser/$repoName.git"
+        if (Get-Command chezmoi -ErrorAction SilentlyContinue) {
+            chezmoi init --apply $repoUrl
+            Write-Host "Native dotfiles deployed." -ForegroundColor Green
+        } else {
+            Write-Host "chezmoi not found in PATH; skipping native dotfile deployment." -ForegroundColor DarkYellow
+        }
+    }
+} else {
+    Write-Host "gh not found; skipping native dotfile deployment." -ForegroundColor DarkYellow
+}
+
 Write-Host ""
 Write-Host "===============================" -ForegroundColor Green
 Write-Host "Windows Bootstrap Complete!" -ForegroundColor Green
@@ -255,7 +284,7 @@ Write-Host "===============================" -ForegroundColor Green
 Write-Host ""
 Write-Host "Next steps:" -ForegroundColor Cyan
 Write-Host "1. Close this PowerShell window" -ForegroundColor White
-Write-Host "2. Open WezTerm (it will launch into WSL2 automatically)" -ForegroundColor White
+Write-Host "2. Open WezTerm (it will default to PowerShell)" -ForegroundColor White
 Write-Host "3. Enjoy your consistent development environment!" -ForegroundColor White
 Write-Host ""
 
