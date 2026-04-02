@@ -128,6 +128,16 @@ if (-not (Test-Path $weztermConfigPath)) {
     $weztermConfig | Out-File -FilePath $weztermConfigPath -Encoding UTF8
 }
 
+# Install chezmoi natively if not already installed
+if (-not (Get-Command chezmoi -ErrorAction SilentlyContinue)) {
+    Write-Host "Installing chezmoi (native Windows)..." -ForegroundColor Yellow
+    if (Get-Command winget -ErrorAction SilentlyContinue) {
+        winget install --id twpayne.chezmoi -e --silent --accept-source-agreements --accept-package-agreements
+    } else {
+        Write-Host "winget not available; skipping native chezmoi install." -ForegroundColor DarkYellow
+    }
+}
+
 Write-Host ""
 Write-Host "Now setting up dotfiles inside WSL2..." -ForegroundColor Yellow
 Write-Host ""
