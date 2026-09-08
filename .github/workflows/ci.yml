@@ -47,6 +47,27 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: bash ./bootstrap-macos.sh
 
+  # macos-latest is Apple Silicon (arm64), which only exercises the Homebrew
+  # path. macos-15-intel is a standard (non-billed, non-"larger runner") x64
+  # image, used here specifically to exercise the MacPorts bootstrap path.
+  macos-intel-checks:
+    runs-on: macos-15-intel
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Bash syntax checks
+        run: ./scripts/test-matrix.sh
+
+      - name: macOS bootstrap CI test (Intel / MacPorts)
+        env:
+          BOOTSTRAP_CI_TEST: "1"
+          BOOTSTRAP_NONINTERACTIVE: "1"
+          GITHUB_USER: pfeerick
+          REPO_NAME: dotfiles
+          GH_TOKEN: ${{ github.token }}
+        run: bash ./bootstrap-macos.sh
+
   windows-checks:
     runs-on: windows-latest
     steps:

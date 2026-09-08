@@ -40,8 +40,11 @@ same architecture split Stage 2 makes for its own broader tool manifest:
   macOS version, the script exits with instructions to install MacPorts manually from
   https://www.macports.org/install.php rather than silently falling back to Homebrew.
 
-CI (`macos-latest` GitHub Actions runner) is Apple Silicon, so the Intel/MacPorts path
-is not exercised by CI — it needs manual verification on real Intel hardware.
+CI exercises both paths: `macos-checks` runs on `macos-latest` (Apple Silicon, Homebrew
+path); `macos-intel-checks` runs on `macos-15-intel` (a standard, non-"larger runner"
+x64 image — not billed, unlike the `-large`/`-xlarge` labels) to exercise the MacPorts
+bootstrap path. `BOOTSTRAP_CI_TEST=1` still skips the Stage 2 handoff and gh login, but
+the package-manager bootstrap and install steps run for real on both runners.
 
 ## Windows Bootstrap Flow
 
