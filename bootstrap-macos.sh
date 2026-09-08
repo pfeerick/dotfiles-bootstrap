@@ -53,33 +53,120 @@ if ! sudo -n true 2>/dev/null; then
     while true; do sudo -n true; sleep 60; kill -0 "$" || exit; done 2>/dev/null &
 fi
 
-# Install Homebrew if not present
-if ! command -v brew &> /dev/null; then
-    echo "Installing Homebrew..."
-    NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+# Homebrew's support for older Intel-only macOS releases is narrowing, while
+# MacPorts still supports them well. Apple Silicon keeps using Homebrew;
+# Intel Macs bootstrap through MacPorts instead. Stage 2 (dotfiles) makes the
+# same split for its own broader tool manifest.
+ARCH="$(uname -m)"
 
-    # Add Homebrew to PATH for Apple Silicon Macs
-    if [ -f /opt/homebrew/bin/brew ]; then
-        eval "$(/opt/homebrew/bin/brew shellenv)"
+if [ "$ARCH" = "arm64" ]; then
+    # Install Homebrew if not present
+    if ! command -v brew &> /dev/null; then
+        echo "Installing Homebrew..."
+        NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+
+        # Add Homebrew to PATH for Apple Silicon Macs
+        if [ -f /opt/homebrew/bin/brew ]; then
+            eval "$(/opt/homebrew/bin/brew shellenv)"
+        fi
     fi
-fi
 
-# Install GitHub CLI if not present
-if ! command -v gh &> /dev/null; then
-    echo "Installing GitHub CLI..."
-    brew install gh
-fi
+    # Install GitHub CLI if not present
+    if ! command -v gh &> /dev/null; then
+        echo "Installing GitHub CLI..."
+        brew install gh
+    fi
 
-# Install Python 3 if not present
-if ! command -v python3 &> /dev/null; then
-    echo "Installing Python 3..."
-    brew install python
-fi
+    # Install Python 3 if not present
+    if ! command -v python3 &> /dev/null; then
+        echo "Installing Python 3..."
+        brew install python
+    fi
 
-# Install chezmoi if not already installed
-if ! command -v chezmoi &> /dev/null; then
-    echo "Installing chezmoi..."
-    brew install chezmoi
+    # Install chezmoi if not already installed
+    if ! command -v chezmoi &> /dev/null; then
+        echo "Installing chezmoi..."
+        brew install chezmoi
+    fi
+else
+    # Intel Mac: bootstrap MacPorts if not present, then install the same
+    # minimal prerequisite set via `port` instead of `brew`.
+    if ! command -v port &> /dev/null; then
+        echo "Installing MacPorts..."
+
+        MACOS_VERSION="$(sw_vers -productVersion)"
+        MAJOR="${MACOS_VERSION%%.*}"
+        MINOR="0"
+        if [[ "$MACOS_VERSION" == *.* ]]; then
+            REST="${MACOS_VERSION#*.}"
+            MINOR="${REST%%.*}"
+        fi
+
+        CODENAME=""
+        if [ "$MAJOR" -ge 11 ]; then
+            case "$MAJOR" in
+                11) CODENAME="11-BigSur" ;;
+                12) CODENAME="12-Monterey" ;;
+                13) CODENAME="13-Ventura" ;;
+                14) CODENAME="14-Sonoma" ;;
+                15) CODENAME="15-Sequoia" ;;
+                26) CODENAME="26-Tahoe" ;;
+                *) CODENAME="" ;;
+            esac
+        else
+            case "${MAJOR}.${MINOR}" in
+                10.13) CODENAME="10.13-HighSierra" ;;
+                10.14) CODENAME="10.14-Mojave" ;;
+                10.15) CODENAME="10.15-Catalina" ;;
+                *) CODENAME="" ;;
+            esac
+        fi
+
+        if [ -z "$CODENAME" ]; then
+            echo "ERROR: Could not determine a matching MacPorts installer for macOS $MACOS_VERSION."
+            echo "Install MacPorts manually from https://www.macports.org/install.php, then re-run this script."
+            exit 1
+        fi
+
+        echo "Detected macOS $MACOS_VERSION -> $CODENAME"
+
+        LATEST_JSON="$(curl -fsSL https://api.github.com/repos/macports/macports-base/releases/latest || true)"
+        if [ -z "$LATEST_JSON" ]; then
+            echo "ERROR: Failed to query the MacPorts GitHub releases API."
+            echo "Install MacPorts manually from https://www.macports.org/install.php, then re-run this script."
+            exit 1
+        fi
+
+        ASSET_URL="$(printf '%s' "$LATEST_JSON" | grep -o "\"browser_download_url\": *\"[^\"]*${CODENAME}\.pkg\"" | head -n1 | sed -E 's/.*"(https[^"]+)"/\1/')"
+
+        if [ -z "$ASSET_URL" ]; then
+            echo "ERROR: No MacPorts release asset found matching $CODENAME."
+            echo "Install MacPorts manually from https://www.macports.org/install.php, then re-run this script."
+            exit 1
+        fi
+
+        TMP_PKG="$(mktemp -t macports).pkg"
+        trap 'rm -f "$TMP_PKG"' EXIT
+
+        echo "Downloading $ASSET_URL"
+        curl -fsSL -o "$TMP_PKG" "$ASSET_URL"
+
+        echo "Installing MacPorts (requires sudo)..."
+        sudo installer -pkg "$TMP_PKG" -target /
+    fi
+
+    if [ -d /opt/local/bin ]; then
+        export PATH="/opt/local/bin:/opt/local/sbin:$PATH"
+    fi
+
+    if ! command -v port &> /dev/null; then
+        echo "ERROR: MacPorts installer ran but 'port' is still not on PATH."
+        exit 1
+    fi
+
+    echo "Installing prerequisites via MacPorts..."
+    sudo port install git gh python313 chezmoi
+    sudo port select --set python3 python313
 fi
 
 # Authenticate with GitHub

@@ -23,6 +23,26 @@ Stage 1 **should not**:
 - Manage SSH keys (Stage 2 does this via `run_once_20_fetch_ssh_keys.sh.tmpl`)
 - Apply host-specific personal configuration
 
+## macOS Bootstrap Flow
+
+`bootstrap-macos.sh` branches on `uname -m` to pick a package manager, mirroring the
+same architecture split Stage 2 makes for its own broader tool manifest:
+
+- **Apple Silicon (`arm64`)**: installs Homebrew if missing, then `gh`/`python`/`chezmoi`
+  via `brew install`. Unchanged from before the split.
+- **Intel (`x86_64`)**: Homebrew's support for older Intel-only macOS releases is
+  narrowing, so this path installs MacPorts instead if missing (downloading the
+  versioned `.pkg` matching the detected `sw_vers -productVersion` from
+  `macports/macports-base` releases, then `sudo installer -pkg ... -target /`), then
+  installs `git`/`gh`/`python313`/`chezmoi` via `sudo port install` and activates the
+  pinned Python via `sudo port select --set python3 python313` (MacPorts has no plain
+  `python3` port). If no matching MacPorts release asset is found for the detected
+  macOS version, the script exits with instructions to install MacPorts manually from
+  https://www.macports.org/install.php rather than silently falling back to Homebrew.
+
+CI (`macos-latest` GitHub Actions runner) is Apple Silicon, so the Intel/MacPorts path
+is not exercised by CI — it needs manual verification on real Intel hardware.
+
 ## Windows Bootstrap Flow
 
 The Windows bootstrap (`bootstrap-windows.ps1`) is more complex than Linux/macOS because it runs chezmoi in **two contexts**:
