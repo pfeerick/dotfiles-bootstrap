@@ -23,6 +23,29 @@ Stage 1 **should not**:
 - Manage SSH keys (Stage 2 does this via `run_once_20_fetch_ssh_keys.sh.tmpl`)
 - Apply host-specific personal configuration
 
+## macOS Bootstrap Flow
+
+`bootstrap-macos.sh` branches on `uname -m` to pick a package manager, mirroring the
+same architecture split Stage 2 makes for its own broader tool manifest:
+
+- **Apple Silicon (`arm64`)**: installs Homebrew if missing, then `gh`/`python`/`chezmoi`
+  via `brew install`. Unchanged from before the split.
+- **Intel (`x86_64`)**: Homebrew's support for older Intel-only macOS releases is
+  narrowing, so this path installs MacPorts instead if missing (downloading the
+  versioned `.pkg` matching the detected `sw_vers -productVersion` from
+  `macports/macports-base` releases, then `sudo installer -pkg ... -target /`), then
+  installs `git`/`gh`/`python313`/`chezmoi` via `sudo port install` and activates the
+  pinned Python via `sudo port select --set python3 python313` (MacPorts has no plain
+  `python3` port). If no matching MacPorts release asset is found for the detected
+  macOS version, the script exits with instructions to install MacPorts manually from
+  https://www.macports.org/install.php rather than silently falling back to Homebrew.
+
+CI exercises both paths: `macos-checks` runs on `macos-latest` (Apple Silicon, Homebrew
+path); `macos-intel-checks` runs on `macos-15-intel` (a standard, non-"larger runner"
+x64 image — not billed, unlike the `-large`/`-xlarge` labels) to exercise the MacPorts
+bootstrap path. `BOOTSTRAP_CI_TEST=1` still skips the Stage 2 handoff and gh login, but
+the package-manager bootstrap and install steps run for real on both runners.
+
 ## Windows Bootstrap Flow
 
 The Windows bootstrap (`bootstrap-windows.ps1`) is more complex than Linux/macOS because it runs chezmoi in **two contexts**:
@@ -56,12 +79,21 @@ The WSL script writes `~/.config/dotfiles-bootstrap/handoff.env` before running 
 
 ```
 STAGE1_PROVIDER=dotfiles-bootstrap
-STAGE1_OS=windows-wsl | linux | darwin
+STAGE1_OS=windows-wsl | linux | macos
 STAGE1_GITHUB_USER=...
 STAGE1_REPO_NAME=...
 STAGE1_REPO_URL=...
 STAGE1_GENERATED_AT=<ISO8601>
+STAGE1_PKG_MANAGER=brew | port | apt | dnf | unknown
+STAGE1_BOOTSTRAP_VERSION=<integer, currently 2>
 ```
+
+`STAGE1_PKG_MANAGER`/`STAGE1_BOOTSTRAP_VERSION` are recorded but not yet acted upon —
+they exist so a future bootstrap run can compare the previous run's recorded manager
+against what it would choose today (e.g. an Intel Mac bootstrapped with Homebrew
+before the MacPorts split existed) and decide whether to warn or migrate. No migration
+logic is implemented yet. Bump `STAGE1_BOOTSTRAP_VERSION` in all three bootstrap
+scripts whenever a change to this strategy would be worth detecting on a re-run.
 
 Contract spec: `docs/stage1-stage2-contract.md`
 

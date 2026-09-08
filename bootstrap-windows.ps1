@@ -142,6 +142,12 @@ $wslScript = @'
 #!/bin/bash
 set -e
 
+# Bumped when a change to Stage 1's bootstrap strategy (e.g. which package
+# manager is used) would be useful for Stage 2 or a future re-run to detect.
+# See docs/stage1-stage2-contract.md.
+STAGE1_BOOTSTRAP_VERSION="2"
+PKG_MANAGER="apt"
+
 echo 'Installing dependencies in WSL2...'
 
 # Install dependencies
@@ -204,6 +210,8 @@ mkdir -p "$CONTRACT_DIR"
     echo "STAGE1_REPO_NAME=$REPO_NAME"
     echo "STAGE1_REPO_URL=$REPO_URL"
     echo "STAGE1_GENERATED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    echo "STAGE1_PKG_MANAGER=$PKG_MANAGER"
+    echo "STAGE1_BOOTSTRAP_VERSION=$STAGE1_BOOTSTRAP_VERSION"
 } > "$CONTRACT_FILE"
 
 "$CHEZMOI" init --apply "$REPO_URL"
