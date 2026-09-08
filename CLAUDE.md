@@ -79,12 +79,21 @@ The WSL script writes `~/.config/dotfiles-bootstrap/handoff.env` before running 
 
 ```
 STAGE1_PROVIDER=dotfiles-bootstrap
-STAGE1_OS=windows-wsl | linux | darwin
+STAGE1_OS=windows-wsl | linux | macos
 STAGE1_GITHUB_USER=...
 STAGE1_REPO_NAME=...
 STAGE1_REPO_URL=...
 STAGE1_GENERATED_AT=<ISO8601>
+STAGE1_PKG_MANAGER=brew | port | apt | dnf | unknown
+STAGE1_BOOTSTRAP_VERSION=<integer, currently 2>
 ```
+
+`STAGE1_PKG_MANAGER`/`STAGE1_BOOTSTRAP_VERSION` are recorded but not yet acted upon —
+they exist so a future bootstrap run can compare the previous run's recorded manager
+against what it would choose today (e.g. an Intel Mac bootstrapped with Homebrew
+before the MacPorts split existed) and decide whether to warn or migrate. No migration
+logic is implemented yet. Bump `STAGE1_BOOTSTRAP_VERSION` in all three bootstrap
+scripts whenever a change to this strategy would be worth detecting on a re-run.
 
 Contract spec: `docs/stage1-stage2-contract.md`
 

@@ -6,6 +6,11 @@
 
 set -euo pipefail
 
+# Bumped when a change to Stage 1's bootstrap strategy (e.g. which package
+# manager is used) would be useful for Stage 2 or a future re-run to detect.
+# See docs/stage1-stage2-contract.md.
+STAGE1_BOOTSTRAP_VERSION="2"
+
 CI_TEST="${BOOTSTRAP_CI_TEST:-0}"
 NONINTERACTIVE="${BOOTSTRAP_NONINTERACTIVE:-0}"
 if [ "$CI_TEST" = "1" ]; then
@@ -62,8 +67,10 @@ fi
 
 # Install dependencies
 echo "Installing dependencies..."
+PKG_MANAGER="unknown"
 case $OS in
     ubuntu|debian|linuxmint)
+        PKG_MANAGER="apt"
         sudo apt update
         sudo apt install -y curl git python3
 
@@ -79,6 +86,7 @@ case $OS in
         fi
         ;;
     fedora|centos|rhel)
+        PKG_MANAGER="dnf"
         sudo dnf install -y curl git python3
 
         # Install GitHub CLI
@@ -151,6 +159,8 @@ else
         echo "STAGE1_REPO_NAME=$REPO_NAME"
         echo "STAGE1_REPO_URL=$REPO_URL"
         echo "STAGE1_GENERATED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+        echo "STAGE1_PKG_MANAGER=$PKG_MANAGER"
+        echo "STAGE1_BOOTSTRAP_VERSION=$STAGE1_BOOTSTRAP_VERSION"
     } > "$CONTRACT_FILE"
 
     "$CHEZMOI" init --apply "$REPO_URL"
