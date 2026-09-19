@@ -129,6 +129,34 @@ foreach ($pkg in @(
 $env:PATH = [System.Environment]::GetEnvironmentVariable("PATH", "Machine") + ";" +
             [System.Environment]::GetEnvironmentVariable("PATH", "User")
 
+# Authenticate gh natively FIRST. The Windows keyring is the single source of
+# truth for GitHub auth: WSL borrows this token via gh.exe (for the duration of
+# the WSL stage below, and afterwards through the gh wrapper Stage 2 installs)
+# instead of keeping its own copy in ~/.config/gh/hosts.yml. A second copy of an
+# OAuth token drifts and eventually 401s in gh, mise and topgrade.
+Write-Host ""
+Write-Host "Setting up GitHub CLI for native Windows..." -ForegroundColor Yellow
+$ghToken = $null
+if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
+    Write-Host "WARNING: gh not found on the Windows PATH (install: winget install GitHub.cli)." -ForegroundColor Yellow
+    Write-Host "         WSL will fall back to its own gh login, and native dotfile deployment will be skipped." -ForegroundColor Yellow
+} else {
+    gh auth status *> $null
+    if ($LASTEXITCODE -ne 0) {
+        gh auth login
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "WARNING: gh auth login did not complete; continuing without native gh auth." -ForegroundColor Yellow
+        }
+    }
+    gh auth status *> $null
+    if ($LASTEXITCODE -eq 0) {
+        gh auth setup-git
+        $ghToken = (gh auth token 2>$null | Out-String).Trim()
+        if ($LASTEXITCODE -ne 0) { $ghToken = $null }
+    }
+}
+$ghAuthedNative = [bool]$ghToken
+
 Write-Host ""
 Write-Host "Now setting up dotfiles inside WSL2..." -ForegroundColor Yellow
 Write-Host ""
@@ -181,8 +209,23 @@ fi
 echo ''
 echo 'Authenticating with GitHub...'
 if ! gh auth status &> /dev/null; then
+    # The Windows keyring (gh.exe) is the source of truth for GitHub auth;
+    # borrow its token for this run rather than creating a second, drift-prone
+    # copy in ~/.config/gh/hosts.yml.
+    if command -v gh.exe &> /dev/null; then
+        WIN_GH_TOKEN="$(gh.exe auth token 2>/dev/null | tr -d '\r' || true)"
+        if [ -n "$WIN_GH_TOKEN" ]; then
+            export GH_TOKEN="$WIN_GH_TOKEN"
+        fi
+        unset WIN_GH_TOKEN
+    fi
+fi
+if ! gh auth status &> /dev/null; then
+    echo 'No usable Windows gh session found; falling back to a WSL-local gh login.'
+    echo '(Better: run "gh auth login" in Windows PowerShell so WSL can reuse it.)'
     gh auth login
 fi
+gh auth setup-git || echo 'WARNING: gh auth setup-git failed; git may prompt for credentials.'
 
 # Initialize chezmoi
 echo ''
@@ -230,9 +273,18 @@ echo ''
 # so the resulting path contains no shell metacharacters.
 $tmpScript = "/tmp/dotfiles_bootstrap_$([System.IO.Path]::GetRandomFileName().Replace('.', '')).sh"
 $wslScript | wsl bash -c "cat > '$tmpScript' && chmod +x '$tmpScript'"
+$prevGhToken = $env:GH_TOKEN
+$prevWslEnv = $env:WSLENV
 try {
+    if ($ghToken) {
+        # Hand the Windows token to WSL through WSLENV so it never appears on a command line
+        $env:GH_TOKEN = $ghToken
+        $env:WSLENV = if ($prevWslEnv) { "GH_TOKEN:$prevWslEnv" } else { "GH_TOKEN" }
+    }
     wsl bash -c "GITHUB_USER='$githubUser' REPO_NAME='$repoName' bash '$tmpScript'"
 } finally {
+    $env:GH_TOKEN = $prevGhToken
+    $env:WSLENV = $prevWslEnv
     wsl bash -c "rm -f '$tmpScript'"
 }
 
@@ -247,42 +299,20 @@ if ($stage2InstallerExists -eq "yes") {
     Write-Host "Stage 2 Windows native tools installer not found; skipping native Windows package install." -ForegroundColor DarkYellow
 }
 
-# Authenticate gh natively, reusing the token from WSL to avoid a second interactive login
-Write-Host ""
-Write-Host "Setting up GitHub CLI for native Windows..." -ForegroundColor Yellow
-$ghNative = Get-Command gh -ErrorAction SilentlyContinue
-if ($ghNative) {
-    $ghAuthed = (gh auth status *>&1) -match "Logged in"
-    if (-not $ghAuthed) {
-        # Prefer GH_TOKEN env var, then try to extract from the WSL gh session
-        $token = $env:GH_TOKEN
-        if (-not $token) {
-            $token = (wsl bash -lc 'gh auth token 2>/dev/null').Trim()
-        }
-        if ($token) {
-            $token | gh auth login --with-token
-            gh auth setup-git
-            Write-Host "gh authenticated natively." -ForegroundColor Green
-        } else {
-            Write-Host "WARNING: Could not obtain gh token; native chezmoi init will be skipped." -ForegroundColor Yellow
-            $ghAuthed = $false
-        }
-    }
-
-    # Run chezmoi init natively to deploy Windows dotfiles
-    if ($ghAuthed -or (gh auth status *>&1 | Select-String "Logged in")) {
-        Write-Host ""
-        Write-Host "Running native chezmoi init --apply..." -ForegroundColor Yellow
-        $repoUrl = "https://github.com/$githubUser/$repoName.git"
-        if (Get-Command chezmoi -ErrorAction SilentlyContinue) {
-            chezmoi init --apply $repoUrl
-            Write-Host "Native dotfiles deployed." -ForegroundColor Green
-        } else {
-            Write-Host "chezmoi not found in PATH; skipping native dotfile deployment." -ForegroundColor DarkYellow
-        }
+# Deploy Windows dotfiles natively (gh was authenticated up front)
+if ($ghAuthedNative) {
+    Write-Host ""
+    Write-Host "Running native chezmoi init --apply..." -ForegroundColor Yellow
+    $repoUrl = "https://github.com/$githubUser/$repoName.git"
+    if (Get-Command chezmoi -ErrorAction SilentlyContinue) {
+        chezmoi init --apply $repoUrl
+        Write-Host "Native dotfiles deployed." -ForegroundColor Green
+    } else {
+        Write-Host "chezmoi not found in PATH; skipping native dotfile deployment." -ForegroundColor DarkYellow
     }
 } else {
-    Write-Host "gh not found; skipping native dotfile deployment." -ForegroundColor DarkYellow
+    Write-Host "Skipping native dotfile deployment: gh is missing or not authenticated on Windows." -ForegroundColor DarkYellow
+    Write-Host "Fix: winget install GitHub.cli; gh auth login; then re-run this script." -ForegroundColor DarkYellow
 }
 
 Write-Host ""
