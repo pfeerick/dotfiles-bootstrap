@@ -56,21 +56,18 @@ bootstrap-windows.ps1 (PowerShell, Admin)
   2. Install WezTerm via winget
   3. Install chezmoi + gh natively via winget
   4. Refresh PATH (so newly installed tools are visible without reopening shell)
-  5. Authenticate gh natively (interactive `gh auth login` if needed) — the Windows keyring is the single source of truth
+  5. Authenticate gh natively (interactive `gh auth login` if needed); its token is forwarded to WSL below
   6. WSL inner script (bash), with the Windows token handed over as `GH_TOKEN` via `WSLENV` for this stage only:
      a. Install deps: curl, git, python3, gh
      b. Install chezmoi in WSL (~/.local/bin)
-     c. Reuse the Windows token (`gh.exe auth token`); only if that's unavailable, fall back to an interactive WSL-local `gh auth login`
+     c. Save the forwarded token as WSL's own gh login (`gh auth login --with-token`); only if none was forwarded (or storing it fails), fall back to an interactive WSL-local `gh auth login`
      d. Write handoff.env contract
      e. chezmoi init --apply (deploys Unix/zsh dotfiles, runs all run_onchange_* scripts)
-  7. Run Stage 2 native Windows installer (install_windows_native_tools.py via WSL)
-     → installs all winget packages from tools.manifest.json
-  8. chezmoi init --apply natively (deploys Windows dotfiles: gitconfig, wezterm, PS profile, etc.)
+  7. chezmoi init --apply natively (deploys Windows dotfiles: gitconfig, wezterm, PS profile, etc., and installs the winget packages from tools.manifest.json)
 ```
 
 Key design decisions:
-- **Windows keyring is the source of truth for gh auth**: WSL never keeps its own long-lived token. During Stage 1 it borrows the Windows token (`GH_TOKEN` via `WSLENV`, not on a command line); afterwards Stage 2 installs a `~/.local/bin/gh` wrapper and a mise `credential_command` that fetch it on demand from `gh.exe auth token`. The earlier design copied the token *out of* WSL into Windows; two independent copies drifted and went stale (401s in gh, mise, and topgrade's WSL step). If `gh`/`gh.exe` is missing or unauthenticated, every step degrades with a clear message instead of a cryptic error.
-- **PATH refresh**: after winget installs, `[System.Environment]::GetEnvironmentVariable("PATH", ...)` reloads PATH in the current session
+- **WSL and Windows are independent at runtime**: WSL interop (running `.exe` files from the distro) drops out on its own, and everything that relied on it (`gh.exe` tokens, `npiperelay.exe`, `cmd.exe`/`winget.exe` driven from WSL) broke with it. So Stage 2 runs no Windows executables from WSL, and Stage 1 leaves WSL with its own stored `gh` login instead. The Windows stage authenticates gh first and hands the token to WSL through `WSLENV` (a `wsl.exe` feature, not interop; not on a command line), where it is saved with `gh auth login --with-token` — the same token, not a new OAuth login, so it does not count against GitHub's ten-tokens-per-app limit. Native chezmoi (step 7) is the only thing that touches the Windows side: it installs the winget packages and deploys the PS profile. The earlier designs either copied the token *out of* WSL into Windows, or kept the Windows keyring as the single source via `gh.exe`; both broke (drifted tokens, then interop outages).- **PATH refresh**: after winget installs, `[System.Environment]::GetEnvironmentVariable("PATH", ...)` reloads PATH in the current session
 - **No stub wezterm config**: the old hardcoded stub was removed; chezmoi now deploys the managed `dot_wezterm.lua` directly
 
 ## Handoff Contract
