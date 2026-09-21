@@ -20,6 +20,9 @@ jobs:
       - name: Bash syntax checks
         run: ./scripts/test-matrix.sh
 
+      - name: AI instruction aliases
+        run: ./scripts/test-ai-aliases.sh
+
       - name: Linux bootstrap CI test
         env:
           BOOTSTRAP_CI_TEST: "1"
