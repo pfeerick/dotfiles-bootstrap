@@ -129,11 +129,12 @@ foreach ($pkg in @(
 $env:PATH = [System.Environment]::GetEnvironmentVariable("PATH", "Machine") + ";" +
             [System.Environment]::GetEnvironmentVariable("PATH", "User")
 
-# Authenticate gh natively FIRST. The Windows keyring is the single source of
-# truth for GitHub auth: WSL borrows this token via gh.exe (for the duration of
-# the WSL stage below, and afterwards through the gh wrapper Stage 2 installs)
-# instead of keeping its own copy in ~/.config/gh/hosts.yml. A second copy of an
-# OAuth token drifts and eventually 401s in gh, mise and topgrade.
+# Authenticate gh natively FIRST, so the WSL stage below does not need a second
+# interactive login: the token is handed to WSL through WSLENV (a wsl.exe feature, not
+# WSL interop) and saved there as the distro's own gh login. That is the same token,
+# not a new OAuth login, so it does not count against GitHub's ten-tokens-per-app limit.
+# After bootstrap, WSL and Windows each use their own stored login and depend on
+# nothing from each other at runtime.
 Write-Host ""
 Write-Host "Setting up GitHub CLI for native Windows..." -ForegroundColor Yellow
 $ghToken = $null
@@ -208,22 +209,22 @@ fi
 # Authenticate with GitHub
 echo ''
 echo 'Authenticating with GitHub...'
-if ! gh auth status &> /dev/null; then
-    # The Windows keyring (gh.exe) is the source of truth for GitHub auth;
-    # borrow its token for this run rather than creating a second, drift-prone
-    # copy in ~/.config/gh/hosts.yml.
-    if command -v gh.exe &> /dev/null; then
-        WIN_GH_TOKEN="$(gh.exe auth token 2>/dev/null | tr -d '\r' || true)"
-        if [ -n "$WIN_GH_TOKEN" ]; then
-            export GH_TOKEN="$WIN_GH_TOKEN"
-        fi
-        unset WIN_GH_TOKEN
+# WSL keeps its own gh login: the dotfiles run gh from WSL without depending on Windows
+# at all (WSL interop, i.e. running .exe files from the distro, drops out on its own and
+# everything that relied on it broke). If the Windows side forwarded its token through
+# WSLENV (as GH_TOKEN, no interop involved), save it as this distro's login instead of
+# asking for a second interactive login. env -u: gh refuses to log in while GH_TOKEN or
+# GITHUB_TOKEN is set, and a status check with them set would pass without any stored login.
+if ! env -u GH_TOKEN -u GITHUB_TOKEN gh auth status &> /dev/null; then
+    if [ -n "${GH_TOKEN:-}" ]; then
+        echo 'Saving the forwarded Windows GitHub token as this distro gh login...'
+        printf '%s\n' "$GH_TOKEN" | env -u GH_TOKEN -u GITHUB_TOKEN gh auth login --with-token \
+            || echo 'WARNING: could not store the forwarded token; falling back to an interactive login.'
     fi
 fi
-if ! gh auth status &> /dev/null; then
-    echo 'No usable Windows gh session found; falling back to a WSL-local gh login.'
-    echo '(Better: run "gh auth login" in Windows PowerShell so WSL can reuse it.)'
-    gh auth login
+if ! env -u GH_TOKEN -u GITHUB_TOKEN gh auth status &> /dev/null; then
+    echo 'Logging in to GitHub inside WSL...'
+    env -u GH_TOKEN -u GITHUB_TOKEN gh auth login
 fi
 gh auth setup-git || echo 'WARNING: gh auth setup-git failed; git may prompt for credentials.'
 
@@ -288,18 +289,9 @@ try {
     wsl bash -c "rm -f '$tmpScript'"
 }
 
-# If present, run Stage 2 native Windows installer from WSL (no env gating).
-Write-Host "" 
-Write-Host "Checking for Stage 2 Windows native tools installer..." -ForegroundColor Yellow
-$stage2InstallerExists = (wsl bash -lc 'test -f "$HOME/.local/share/chezmoi/scripts/install_windows_native_tools.py" && echo yes || true').Trim()
-if ($stage2InstallerExists -eq "yes") {
-    Write-Host "Running Stage 2 Windows native tools installer..." -ForegroundColor Yellow
-    wsl bash -c 'source "$HOME/.profile" 2>/dev/null; python3 "$HOME/.local/share/chezmoi/scripts/install_windows_native_tools.py"'
-} else {
-    Write-Host "Stage 2 Windows native tools installer not found; skipping native Windows package install." -ForegroundColor DarkYellow
-}
-
-# Deploy Windows dotfiles natively (gh was authenticated up front)
+# Deploy Windows dotfiles natively (gh was authenticated up front). This is the only thing
+# that touches the Windows side: native chezmoi installs the winget packages and deploys
+# the PowerShell profile itself, so nothing needs to be driven from WSL.
 if ($ghAuthedNative) {
     Write-Host ""
     Write-Host "Running native chezmoi init --apply..." -ForegroundColor Yellow

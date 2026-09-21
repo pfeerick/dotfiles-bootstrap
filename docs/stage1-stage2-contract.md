@@ -19,7 +19,7 @@ This document defines what Stage 1 guarantees before invoking Stage 2 (`chezmoi 
 - `chezmoi`
 
 2. GitHub authentication is active for the current user:
-- `gh auth status` succeeds (on WSL: either directly, or via `gh.exe auth status` — the Windows keyring is the source of truth and WSL borrows its token rather than storing its own).
+- `gh auth status` succeeds, using the distro's own stored login on WSL too (the Windows bootstrap saves the Windows token there). Stage 2 runs no Windows executables from WSL, so nothing depends on `gh.exe` or WSL interop.
 
 3. Handoff marker is written:
 - Path: `$HOME/.config/dotfiles-bootstrap/handoff.env`
