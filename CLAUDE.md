@@ -107,3 +107,7 @@ Contract spec: `docs/stage1-stage2-contract.md`
 ## CI Mode
 
 `BOOTSTRAP_CI_TEST=1` skips WSL provisioning and Stage 2 handoff entirely — it only validates that `gh` is installed and authenticated. Used in `.github/workflows/ci.yml`.
+
+## AI Instruction Files
+
+`CLAUDE.md` is the one real instruction file. `AGENTS.md`, `GEMINI.md`, `.cursorrules`, `.windsurfrules` and `.github/copilot-instructions.md` are git **symlinks** to it (mode `120000`), so other AI tools find the same text under the name they look for. Edit `CLAUDE.md` only; never replace a symlink with a copy (it drifts) and never make `CLAUDE.md` itself the link (on a machine without symlink support it must still hold the instructions). `scripts/test-ai-aliases.sh` (run in CI) checks the aliases from the git index. To add another tool's file, add it to that script.
