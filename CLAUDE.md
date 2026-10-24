@@ -34,9 +34,12 @@ same architecture split Stage 2 makes for its own broader tool manifest:
   narrowing, so this path installs MacPorts instead if missing (downloading the
   versioned `.pkg` matching the detected `sw_vers -productVersion` from
   `macports/macports-base` releases, then `sudo installer -pkg ... -target /`), then
-  installs `git`/`gh`/`python313`/`chezmoi` via `sudo port install` and activates the
+  installs `git`/`python313` via `sudo port install` and activates the
   pinned Python via `sudo port select --set python3 python313` (MacPorts has no plain
-  `python3` port). If no matching MacPorts release asset is found for the detected
+  `python3` port). `gh` (its `macOS_amd64` release zip) and `chezmoi` (`get.chezmoi.io`)
+  go into `~/.local/bin` as prebuilt binaries instead of ports: MacPorts often builds Go
+  tools from source, and Stage 2 installs and updates both from their GitHub releases in
+  `~/.local/bin` anyway (removing any port of them). If no matching MacPorts release asset is found for the detected
   macOS version, the script exits with instructions to install MacPorts manually from
   https://www.macports.org/install.php rather than silently falling back to Homebrew.
 

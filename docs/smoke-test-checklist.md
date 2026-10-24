@@ -20,7 +20,7 @@ This checklist is for manual validation of Stage 1 bootstrap behavior before bro
 2. Confirm the script reports the expected Stage 2 target URL.
 3. Confirm the correct package manager was used for the machine's architecture:
    - Apple Silicon (`arm64`): Homebrew installs `gh`/`python`/`chezmoi`.
-   - Intel (`amd64`/`x86_64`): MacPorts is bootstrapped (if missing) and installs `git`/`gh`/`python313`/`chezmoi`; confirm `python3 --version` resolves via `port select`.
+   - Intel (`amd64`/`x86_64`): MacPorts is bootstrapped (if missing) and installs `git`/`python313` (confirm `python3 --version` resolves via `port select`), and `gh`/`chezmoi` land in `~/.local/bin` as release binaries (confirm `command -v gh chezmoi`).
 4. If gh is not authenticated, complete gh login.
 5. Confirm chezmoi handoff starts (`chezmoi init --apply`).
 6. After completion, run `chezmoi apply` once more and confirm no unexpected errors.
