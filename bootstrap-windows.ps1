@@ -280,7 +280,11 @@ try {
     if ($ghToken) {
         # Hand the Windows token to WSL through WSLENV so it never appears on a command line
         $env:GH_TOKEN = $ghToken
-        $env:WSLENV = if ($prevWslEnv) { "GH_TOKEN:$prevWslEnv" } else { "GH_TOKEN" }
+        $env:WSLENV = if ($env:WSLENV) { "GH_TOKEN:$env:WSLENV" } else { "GH_TOKEN" }
+    }
+    if ($env:DOTFILES_ROLE) {
+        # Stage 2's machine role, read by its .chezmoi.yaml.tmpl (native chezmoi inherits it)
+        $env:WSLENV = if ($env:WSLENV) { "DOTFILES_ROLE:$env:WSLENV" } else { "DOTFILES_ROLE" }
     }
     wsl bash -c "GITHUB_USER='$githubUser' REPO_NAME='$repoName' bash '$tmpScript'"
 } finally {
@@ -297,7 +301,10 @@ if ($ghAuthedNative) {
     Write-Host "Running native chezmoi init --apply..." -ForegroundColor Yellow
     $repoUrl = "https://github.com/$githubUser/$repoName.git"
     if (Get-Command chezmoi -ErrorAction SilentlyContinue) {
-        chezmoi init --apply $repoUrl
+        # --promptDefaults: Stage 2 asks for the machine role unless DOTFILES_ROLE is set
+        $initArgs = @("init", "--apply")
+        if ($isNonInteractive) { $initArgs += "--promptDefaults" }
+        chezmoi @initArgs $repoUrl
         Write-Host "Native dotfiles deployed." -ForegroundColor Green
     } else {
         Write-Host "chezmoi not found in PATH; skipping native dotfile deployment." -ForegroundColor DarkYellow
