@@ -100,7 +100,8 @@ Contract spec: `docs/stage1-stage2-contract.md`
 |----------|----------|---------|
 | `GITHUB_USER` | Yes (non-interactive) | GitHub username |
 | `REPO_NAME` | No | Defaults to `dotfiles` |
-| `BOOTSTRAP_NONINTERACTIVE` | No | Set to `1` to disable prompts |
+| `DOTFILES_ROLE` | No | Stage 2's machine role (`dev`, `workstation`). Stage 1 never interprets it: Stage 2's `.chezmoi.yaml.tmpl` reads it from the environment (so Linux/macOS/native Windows just inherit it) and validates it; Windows adds it to `WSLENV` for the WSL stage. Unset → Stage 2 asks |
+| `BOOTSTRAP_NONINTERACTIVE` | No | Set to `1` to disable prompts; `chezmoi init` also gets `--promptDefaults` so Stage 2's prompts take their defaults |
 | `BOOTSTRAP_CI_TEST` | No | Set to `1` for CI mode (skips WSL/Stage 2) |
 | `GH_TOKEN` | CI only | Token for non-interactive gh auth |
 

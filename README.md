@@ -24,11 +24,18 @@ Windows (PowerShell as Administrator):
 $env:GITHUB_USER="pfeerick"; $env:REPO_NAME="dotfiles"; irm https://raw.githubusercontent.com/pfeerick/dotfiles-bootstrap/master/bootstrap-windows.ps1 | iex
 ```
 
+Non-development machine (Stage 2 skips its dev tooling):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/pfeerick/dotfiles-bootstrap/master/bootstrap-macos.sh | GITHUB_USER=pfeerick REPO_NAME=dotfiles DOTFILES_ROLE=workstation bash
+```
+
 ## Environment Variables
 
 - `GITHUB_USER` (required in non-interactive mode)
 - `REPO_NAME` (optional, defaults to `dotfiles`)
-- `BOOTSTRAP_NONINTERACTIVE` (optional; set to `1` to disable prompts)
+- `DOTFILES_ROLE` (optional; Stage 2's machine role, e.g. `dev` or `workstation`. Passed through untouched, Stage 2 validates it; without it Stage 2 asks)
+- `BOOTSTRAP_NONINTERACTIVE` (optional; set to `1` to disable prompts, including Stage 2's: `chezmoi init` then gets `--promptDefaults`)
 - `BOOTSTRAP_CI_TEST` (optional; set to `1` to run CI test mode and skip Stage 2 handoff)
 - `GH_TOKEN` (required when `BOOTSTRAP_CI_TEST=1` and `gh` is not already authenticated)
 - `BOOTSTRAP_VERBOSE` (optional; set to `1` for more logging)

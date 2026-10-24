@@ -220,7 +220,13 @@ else
         echo "STAGE1_BOOTSTRAP_VERSION=$STAGE1_BOOTSTRAP_VERSION"
     } > "$CONTRACT_FILE"
 
-    chezmoi init --apply "$REPO_URL"
+    # Stage 2 asks for the machine role unless DOTFILES_ROLE is set (it reads it from the
+    # environment); non-interactive runs take its default instead of prompting.
+    INIT_ARGS=(init --apply)
+    if [ "$NONINTERACTIVE" = "1" ]; then
+        INIT_ARGS+=(--promptDefaults)
+    fi
+    chezmoi "${INIT_ARGS[@]}" "$REPO_URL"
 fi
 
 echo ""
