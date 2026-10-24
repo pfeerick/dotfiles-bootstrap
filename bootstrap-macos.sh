@@ -174,8 +174,40 @@ else
     fi
 
     echo "Installing prerequisites via MacPorts..."
-    sudo port install git gh python313 chezmoi
+    # No git port: Apple's git from the Xcode Command Line Tools is enough here (and for
+    # the dotfiles' gitconfig), and the port would be built from source on every upgrade.
+    # MacPorts needs the Command Line Tools anyway; without them /usr/bin/git is only a stub.
+    if ! xcode-select -p &> /dev/null; then
+        echo "ERROR: The Xcode Command Line Tools are not installed (needed by MacPorts, and for git)."
+        echo "Install them with: xcode-select --install   then re-run this script."
+        exit 1
+    fi
+    sudo port install python313
     sudo port select --set python3 python313
+
+    # gh and chezmoi are prebuilt release binaries, not ports: MacPorts often builds Go
+    # tools from source, and Stage 2 installs and updates both from their GitHub releases
+    # in ~/.local/bin anyway (and removes a port of either).
+    mkdir -p "$HOME/.local/bin"
+    export PATH="$HOME/.local/bin:$PATH"
+
+    if ! command -v gh &> /dev/null; then
+        echo "Installing GitHub CLI..."
+        # The latest-release URL redirects to .../releases/tag/vX.Y.Z
+        GH_TAG="$(curl -fsSL -o /dev/null -w '%{url_effective}' https://github.com/cli/cli/releases/latest)"
+        GH_TAG="${GH_TAG##*/}"
+        GH_DIR="gh_${GH_TAG#v}_macOS_amd64"
+        GH_TMP="$(mktemp -d)"
+        curl -fsSL -o "$GH_TMP/gh.zip" "https://github.com/cli/cli/releases/download/$GH_TAG/$GH_DIR.zip"
+        unzip -q "$GH_TMP/gh.zip" -d "$GH_TMP"
+        mv "$GH_TMP/$GH_DIR/bin/gh" "$HOME/.local/bin/gh"
+        rm -rf "$GH_TMP"
+    fi
+
+    if ! command -v chezmoi &> /dev/null; then
+        echo "Installing chezmoi..."
+        sh -c "$(curl -fsLS get.chezmoi.io)" -- -b "$HOME/.local/bin"
+    fi
 fi
 
 # Authenticate with GitHub
