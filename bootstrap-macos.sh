@@ -174,7 +174,15 @@ else
     fi
 
     echo "Installing prerequisites via MacPorts..."
-    sudo port install git python313
+    # No git port: Apple's git from the Xcode Command Line Tools is enough here (and for
+    # the dotfiles' gitconfig), and the port would be built from source on every upgrade.
+    # MacPorts needs the Command Line Tools anyway; without them /usr/bin/git is only a stub.
+    if ! xcode-select -p &> /dev/null; then
+        echo "ERROR: The Xcode Command Line Tools are not installed (needed by MacPorts, and for git)."
+        echo "Install them with: xcode-select --install   then re-run this script."
+        exit 1
+    fi
+    sudo port install python313
     sudo port select --set python3 python313
 
     # gh and chezmoi are prebuilt release binaries, not ports: MacPorts often builds Go

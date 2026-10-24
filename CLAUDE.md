@@ -34,7 +34,10 @@ same architecture split Stage 2 makes for its own broader tool manifest:
   narrowing, so this path installs MacPorts instead if missing (downloading the
   versioned `.pkg` matching the detected `sw_vers -productVersion` from
   `macports/macports-base` releases, then `sudo installer -pkg ... -target /`), then
-  installs `git`/`python313` via `sudo port install` and activates the
+  checks the Xcode Command Line Tools are installed (MacPorts needs them; they also
+  provide git, so there is no git port: it would be built from source on every upgrade,
+  and nothing in the dotfiles needs a newer git than Apple's), installs `python313` via
+  `sudo port install` and activates the
   pinned Python via `sudo port select --set python3 python313` (MacPorts has no plain
   `python3` port). `gh` (its `macOS_amd64` release zip) and `chezmoi` (`get.chezmoi.io`)
   go into `~/.local/bin` as prebuilt binaries instead of ports: MacPorts often builds Go
